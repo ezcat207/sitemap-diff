@@ -83,7 +83,8 @@ project/
 ├── core/                 # 核心配置层
 │   └── config.py        # 配置文件处理
 ├── services/            # 具体服务层
-│   └── rss/            # RSS服务实现
+│   ├── rss/            # RSS/sitemap服务实现
+│   └── wiki/           # Fandom/MediaWiki 新增词条监控实现
 ├── storage/             # 数据存储层
 └── site-bot.py         # 主程序入口
 ```
@@ -104,6 +105,10 @@ project/
   - `/rss list` - 显示所有监控的sitemap列表
   - `/rss add URL` - 添加新的sitemap监控（URL必须以sitemap.xml结尾）
   - `/rss del URL` - 删除指定的sitemap监控
+- `/wiki` - Fandom/MediaWiki 站点新增词条监控（走 `api.php`，不受 sitemap.xml 常见的 Cloudflare 拦截影响），包含以下子命令：
+  - `/wiki list` - 显示所有监控的wiki站点
+  - `/wiki add BASE_URL` - 添加wiki监控，BASE_URL为站点根地址（如 `https://genshin-impact.fandom.com`）
+  - `/wiki del BASE_URL` - 删除指定的wiki监控
 - `/news` - 手动触发关键词汇总的生成和发送。该命令会比较每个监控源已存储的 `current` 和 `latest` sitemap 文件，收集所有新增的 URL，并发送汇总的关键词速览到配置的目标频道。
 
 示例:
@@ -116,6 +121,12 @@ project/
 
 # 删除sitemap监控
 /rss del https://example.com/sitemap.xml
+
+# 添加游戏 Fandom wiki 监控，追踪新增角色/词条作为热点信号
+/wiki add https://genshin-impact.fandom.com
+
+# 删除wiki监控
+/wiki del https://genshin-impact.fandom.com
 ```
 
 ### 监控功能说明
@@ -127,3 +138,7 @@ project/
    - 每小时检查一次所有订阅的sitemap
    - 自动对比并发现新增的URL
    - 将更新内容发送到指定频道/用户
+3. 添加wiki监控后，机器人会：
+   - 通过 `{BASE_URL}/api.php?action=query&list=recentchanges&rcnamespace=0&rctype=new` 建立基线（首次添加不回放历史，避免刷屏）
+   - 定时任务每15分钟检查一次，发现主命名空间下新创建的词条（如新角色、新道具、新剧情条目）即推送
+   - 相比 sitemap.xml，MediaWiki 的 `api.php` 通常不受 Cloudflare 挑战页拦截，更适合监控 Fandom 类游戏wiki，且新增词条本身就是较强的"热点信号"——玩家社区往往在官方公告后数小时内就会建好词条页面

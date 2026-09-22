@@ -41,9 +41,11 @@ async def run(token):
     application.add_handler(CommandHandler("help", help))
 
     # 从services加载其他命令
-    from services.rss.commands import register_commands
+    from services.rss.commands import register_commands as register_rss_commands
+    from services.wiki.commands import register_commands as register_wiki_commands
 
-    register_commands(application)
+    register_rss_commands(application)
+    register_wiki_commands(application)
 
     await application.initialize()
     await application.start()
@@ -115,4 +117,38 @@ async def scheduled_task(token):
             await asyncio.sleep(3600)  # 保持1小时检查间隔
         except Exception as e:
             logging.error(f"检查订阅源更新失败: {str(e)}", exc_info=True)
+            await asyncio.sleep(60)  # 出错后等待1分钟再试
+
+
+async def wiki_scheduled_task(token):
+    """wiki(MediaWiki/Fandom)新增词条定时任务，间隔更短，因为wiki编辑频率远高于sitemap更新"""
+    await asyncio.sleep(5)
+
+    bot = tel_bots.get(token)
+    if not bot:
+        logging.error(f"未找到token对应的bot实例: {token}")
+        return
+
+    from services.wiki.commands import wiki_manager, send_wiki_update_notification
+
+    while True:
+        try:
+            feeds = wiki_manager.get_feeds()
+            logging.info(f"wiki定时任务开始检查更新，共 {len(feeds)} 个订阅")
+
+            for base_url in feeds:
+                success, error_msg, new_pages = wiki_manager.check_new_pages(base_url)
+                if success:
+                    if new_pages:
+                        await send_wiki_update_notification(bot, base_url, new_pages)
+                        logging.info(f"wiki {base_url} 发现 {len(new_pages)} 个新增词条，已发送通知。")
+                    else:
+                        logging.info(f"wiki {base_url} 无新增词条。")
+                else:
+                    logging.warning(f"wiki {base_url} 检查失败: {error_msg}")
+
+            logging.info("所有wiki订阅检查完成，等待下一次检查")
+            await asyncio.sleep(900)  # 15分钟检查间隔
+        except Exception as e:
+            logging.error(f"检查wiki订阅更新失败: {str(e)}", exc_info=True)
             await asyncio.sleep(60)  # 出错后等待1分钟再试

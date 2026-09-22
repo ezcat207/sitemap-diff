@@ -37,6 +37,7 @@ def main():
                 tasks.append(telegram_bot.start_task(tel_token))
                 # 为每个bot添加定时任务
                 tasks.append(telegram_bot.scheduled_task(tel_token))
+                tasks.append(telegram_bot.wiki_scheduled_task(tel_token))
 
     try:
         loop.run_until_complete(asyncio.gather(*tasks))
